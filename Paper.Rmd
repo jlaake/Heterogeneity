@@ -1,0 +1,718 @@
+---
+title: "Heterogeneity in Wildlife Abundance Estimation"
+author: "Jeff Laake and Bret Collier"
+date: "2023-01-07"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(xtable)
+library(pander)
+```
+
+
+```{r,results='hide'}
+#homogeneous
+set.seed(9039921)
+ss=1000
+p1=0.4
+p2=0.6
+p1=as.numeric(runif(ss)<=p1)
+p2=as.numeric(runif(ss)<=p2)
+all_ch=paste(p1,p2,sep="")
+ch_hom=all_ch[all_ch!="00"]
+
+x=table(p1,p2)
+x
+chisq.test(x)
+cov(p1,p2)
+cor(p1,p2)
+cor.test(p1,p2)
+
+n=(sum(x)-x[1,1])
+p_hat=c(x[2,2]/sum(x[,2]),x[2,2]/sum(x[2,]))
+p_hat
+p_either=(1-prod(1-p_hat))
+p_either
+Nhat=n/p_either
+Nhat
+est_hom=c(n,p_either,Nhat)
+
+p2_0=x[1,2]/sum(x[1,])
+p2_0
+p2_1=x[2,2]/sum(x[2,])
+p2_1
+p1=sum(x[2,])/sum(x)
+p1
+p2=sum(x[,2])/sum(x)
+p2
+
+ctab_hom=matrix(c((1-p1)*(1-p2_0),p1*(1-p2_1),(1-p1)*p2_0,p1*p2_1),nrow=2)
+x/sum(x)
+ctab_hom
+
+x_hom=x
+prob_hom=c(p1,p2,p2_0,p2_1)
+prob_hom
+
+# heterogeneous
+cov=rnorm(ss,0,2)
+
+p1=plogis(log(.4/.6)+cov)
+p2=plogis(log(.6/.4)+cov)
+p1=as.numeric(runif(ss)<=p1)
+p2=as.numeric(runif(ss)<=p2)
+all_ch=paste(p1,p2,sep="")
+ch=all_ch[all_ch!="00"]
+obs_cov=cov[p1>0 | p2>0]
+
+# 50 marked animals
+marked=sample(1:1000,50)
+p3=rep(0,1000)
+p3[marked]=1
+ch_marked=paste(p1,p2,p3,sep="")
+marked=factor(p3[ch_marked!="000"],labels=c("unmarked","marked"))
+ch_marked=ch_marked[ch_marked!="000"]
+
+# 25 marked animals
+marked25=sample(1:1000,25)
+p3=rep(0,1000)
+p3[marked25]=1
+ch_marked25=paste(p1,p2,p3,sep="")
+marked25=factor(p3[ch_marked25!="000"],labels=c("unmarked","marked"))
+ch_marked25=ch_marked25[ch_marked25!="000"]
+
+
+x=table(p1,p2)
+x
+chisq.test(x)
+cov(p1,p2)
+cor(p1,p2)
+cor.test(p1,p2)
+
+# Under independence
+n=(sum(x)-x[1,1])
+p_hat=c(x[2,2]/sum(x[,2]),x[2,2]/sum(x[2,]))
+p_hat
+p_either=(1-prod(1-p_hat))
+p_either
+p_neither=prod(1-p_hat)
+p_neither
+
+Nhat=n/p_either
+Nhat
+
+est_het=c(n,p_either,Nhat)
+
+p2_0=x[1,2]/sum(x[1,])
+p2_0
+p2_1=x[2,2]/sum(x[2,])
+p2_1
+p1=sum(x[2,])/sum(x)
+p1
+p2=sum(x[,2])/sum(x)
+p2
+prob_het=c(p1,p2,p2_0,p2_1)
+prob_het
+
+ctab_het=matrix(c((1-p1)*(1-p2_0),p1*(1-p2_1),(1-p1)*p2_0,p1*p2_1),nrow=2)
+x/sum(x)
+ctab_het
+
+x_het=x
+```
+
+
+## Abstract
+
+
+## Introduction
+
+The bias in mark-recapture abundance estimation from heterogeneity in capture/detection probabilities has been well known for nearly 60 years (Cormack (1968), Otis et al. (1978)).  There is an extensive literature on various ways to cope with heterogeneity in mark-recapture including incorporating covariates that create heterogeneity Huggins (1989,1991), random effects following a specified distribution (Burnham and Overton 1978, Pledger and Efford 1998, and White and Cooch 2017), mixture distributions (Pledger 2000, Dorazio and Royle 2003), and a non-parametric jackknife estimator (Burnham and Overton 1979). We have authored or co-authored various manuscripts describing the impact of heterogeneity and how it can be accommodated in mark-recapture distance sampling (Laake 1999, Laake and Borchers 2004, Borchers et al 2006, Laake et al 2008, and Laake et al. 2011). 
+
+A recent paper by Hennig et al. (2022) demonstrates how the impact of heterogeneity can be reduced or removed by including animals with radio-collars that can be located independently from the double-observer aerial survey of wild burros. They used an approach that was related to Laake et al (2014) who demonstrated how dependence in double tag loss can be included with a sample of permanent marks. Hennig et al. (2022) demonstrated that their approach to accommodating heterogeneity was superior to the method proposed by Griffin et al. (2013). The heterogeneity is accommodated in the Huggins model (Huggins 1989,1991) with a separate recapture probability which does not require a distributional assumption which may have problems with non-identifiability (Link 2003).
+
+Sightability surveys (Steinhorst and Samuel 1989) while similar in concept, are developed prior to the survey rather than measuring sightability during the survey as in Hennig et al. (2022). Mark-resight surveys (McClintock et al. 2006 ) are also similar to the work of Hennig et al. (2022) except that they only use counts of unmarked animals without a capture history. Methods in which individuals are "planted" into the population before a capture-recapture survey (Goudie 1995, Ashbridge and Goudie 2008) have been used in human population sampling often with the intent of using a single sample (Laska et al. 1988). But we have not seen any indication that it was used to accommodate heterogeneity, although they could in multi-sample surveys.
+
+We do not believe that this extensive literature has explained the fundamental problem with heterogeneity and why it matters with some techniques like mark-recapture and not others like distance sampling. Our objectives are twofold in this paper. First, we will explain heterogeneity and why it creates bias using a simple double-observer survey example which is equivalent to a two-sample mark-recapture experiment. Second, we will contrast mark-recapture with distance sampling and demonstrate how the inclusion of a known component in the sampling can be used to remove some or all of the bias from heterogeneity. We demonstrate the use of a known marked component to remove heterogeneity using data from a camera trap study of an area with a known population size and gps radio-marked turkeys. 
+
+
+## What is heterogeneity
+
+A dictionary definition of heterogeneity is "the quality or state of consisting of dissimilar or diverse elements" and it is the antonym for homogeneity where everything is the same. In terms of wildlife abundance estimation, homogeneity would mean that all $N$ animals would have the same probability $p$ of being detected or captured and heterogeneity means that potentially you could have $N$ different probabilities ($p_1,p_2,...p_N$). If you spoke with any field biologist who conducted surveys, they would tell you that assuming homogeneity would be completely unreasonable because there are a multitude of conditions that would affect whether you detected or captured an animal. 
+
+## What is independence
+Statistical independence is a simple concept that has important implications with regard to heterogeneity.  If two events are independent then the probability that both events occur is the product of the event probabilities. A simple example is rolling two dice in sequence and computing the probability of rolling craps which is a pair of ones. With two fair six sided dice, the probability that each die is a 1 is 1/6 and then the probability of rolling craps is 1/6*1/6=1/36. In other words, the probability of rolling a 1 with the second dice is still 1/6 regardless of the outcome on the first die. 
+
+Now consider a different experiment in which you roll a different die depending on the outcome of the value of the first die. Let's say that if you roll 1,2 or 3 on the first die, you roll a 3 sided die with values 1,2,3. Now the probability of rolling craps is 1/6*1/3 because the conditional probability of rolling a 1 with the second die is now 1/3 given that the first die was a 1. The outcome of the events are no longer independent and while the initial probability of rolling a 1 was 1/6, the conditional probability on the second die is 1/3. The outcomes are dependence when the conditional probability differs from the unconditional probability.
+
+## Heterogeneity induces dependence
+A simple way to show why heterogeneity induces dependence is with a two-sample mark-recapture example which is relevant for both capture-recapture, double-observer surveys and double tag loss. In this setup, animals are given a 1 if they are captured(detected) and a 0 if they are not captured(detected). There are 2 samples (observers) so there is a pair of values that can be 10, 01, 11 if captured in first but not second, captured in second but not first and captured in both, respectively. This is typically called the capture or encounter history. We will denote $x_10,x_01,x_11$ to be the number observed in each capture history and denote as $x_00$ to be the number which are not observed and is what we want to estimate. 
+
+It is easiest to demonstrate this as a 2by2 contingency table with the first sample(observer) as the rows and the second sample (observer) as the columns with values 0(missed) or 1(detected) for the entries.
+
+```{r twobytwo}
+twobytwo=matrix(c("$x_{00}$","$x_{10}$","$x_{01}$","$x_{11}$"),ncol=2,nrow=2)
+rownames(twobytwo)=c("Missed","Detected")
+colnames(twobytwo)=c("Missed","Detected")
+pander(twobytwo)
+
+```
+
+To demonstrate what happens with heterogeneity, we have simulated some data under homogeneity and heterogeneity. For the homogeneity example,the first observer probability $p_1$ is 0.4 and the second observer probability $p_2$ is 0.6 and they are the same for each of the 1,000 simulated animals. For the heterogeneity example, we generated 1,000 normal random variables ($r_i$) with a mean of 0 and standard deviation of 2. The capture probability of the $i^{th}$ simulated animal for the first observer is $p_1=1/{[1+exp(-log(.4/.6)-r_i)]}$} and for the second observer $p_2=1/{[1+exp(-log(.6/.4)-r_i)]}$}. When $r_i=0$ (the mean value) the probabilities are the same as the homogeneity example for the two observers. The probabilities range from 0.029 to 0.987 for 95% of the simulated animals. 
+
+The following table shows a single realization of the simulation for both the homogeneity and heterogeneity side-by-side.
+
+```{r}
+pander(cbind(x_hom,x_het))
+```
+
+You can learn a lot by looking at the pattern of the observations in the tables. As you would expect there are more $x_{10}$ values than $x_{01}$ values because the detection probability is 50% greater for observer 2. But the most important comparison is between the homogeneity and heterogeneity tables for the $x_{00}$ and $x_{11}$ values. For the homogeneity table only 45% are either missed by both or seen by both ($x_{00}$ or $x_{11}$); whereas, for the heterogeneity table it is 69% of the values. This result is typical for heterogeneity because those with low probabilities are missed by both observers ($x_{00}$) and those with high probabilities are seen by both observers ($x_{11}$. 
+
+A chi-square test for independence between the outcomes of observer 1 and 2 is non-significant for the homogeneity example ($\chi^2$=```r round(chisq.test(x_hom)$statistic,2)```, $p$ = ```r round(chisq.test(x_hom)$p.value,2)```) and highly significant for dependence for the heterogeneity example ($\chi^2$=```r round(chisq.test(x_het)$statistic,2)```, $p$ = ```r round(chisq.test(x_het)$p.value,2)```).
+
+# Dependence induces bias
+The probabilities in each 2by2 table can expressed as shown below:
+
+```{r twobytwo_prob}
+twobytwo=matrix(c("$(1-p_1)(1-p_{2|0})$","$p_1(1-p_{2|1})$","$(1-p_1)p_{2|0}$","$p_1p_{2|1}$"),ncol=2,nrow=2)
+rownames(twobytwo)=c("Missed","Detected")
+colnames(twobytwo)=c("Missed","Detected")
+pander(twobytwo)
+
+```
+where $p_{2|0}$ is the conditional probability that observer 2 makes a detection that observer 1 missed and $p_{2|1}$ is the conditional probability that observer 2 makes a detection that observer 1 also made. From the complete table (including $x_00$), the probabilities can be computed as $p_1=(x_{10}+x_{11})/N, p_2=(x_{01}+x_{11})/N, p_{2|0}=x_{01}/(x_{00}+x_{01}$ and $p_{2|1}=x_{11}/(x_{11}+x_{10})$. Under homogeneity the outcomes for the 2 observers are independent and $p_{2|0},p_{2|1}$ and $p_2$ have the same expected value. With heterogeneity, we expect $p_{2|0}<p_2$ and $p_{2|1}>p_2$. These relationships are shown in the following table with the results for the examples.
+
+
+```{r}
+prob_table=cbind(prob_hom,prob_het)
+rownames(prob_table)=c("$p_1$","$p_2$","$p_{2|0}$","$p_{2|1}$")
+colnames(prob_table)=c("Homogeneity","Heterogeneity")
+pander(prob_table)
+```
+
+Obviously we don't know $x_00$, the ones missed by both observers.  Without $x_00$ we must assume that the outcomes for the two observers are independent and we estimate $p_1=x_{11}/(x_{11}+x_{01}$ and $p_2=x_{11}/(x_{11}+x_{10}$, the proportion of animals detected by observer 1 of the total that observer 2 detected and vice versa. Therein, lies the problem with heterogeneity because the sample we are using to estimate the probability will disproportionately include the most detectable animals.
+
+Under the independence assumption, the probability that one or the other observer detected the animal is $p=1-(1-p_1)(1-p_2)$ or $p=p_1+p_2-p_1p_2$ and the estimate of abundance is $N=n/p$ where $n=x_{10}+x_{01}+x_{11}$. The same estimator can also be expressed as the Lincoln-Petersen estimator as $N=n_1n_2/m$ where $n_1=x_{11}+x_{10}$, $n_2=x_{11}+x_{01}$ and $m=x_{11}$.
+
+For the homogeneous simulation, $n$=```r est_hom[1]```, $p$=```r signif( est_hom[2],3)``` and $N$=```r signif(est_hom[3],5)``` which is very close to the true value of 1000. Whereas, for the heterogeneous simulation, $n$=```r est_het[1]```, $p$=```r signif(est_het[2],3)``` and $N$=```r signif(est_het[3],4)``` which is quite low because $p$ is biased high from heterogeneity and the induced dependence. 
+
+## Distance Sampling and Heterogeneity
+If heterogeneity affects mark-recapture why might it not affect distance sampling?" The answer is because we assume detection probability on the line (x=0) is perfect (g(0)=1) and we estimate the detection probability for x>0 based on the uniform distribution. Detection probability at x>0 is determined by comparison to detection at x=0 where it is assumed to be unity. Thus, while there could be heterogeneity in detection probability at x>0, none exists at x=0 by assumption. The number observed at x=0 is essentially a "known" quantity. These concepts are discussed in much more detail in Laake et al. (2008) which discusses mark-recapture, distance sampling and the combined mark-recapture-distance sampling for aerial surveys of wild horses. So here we will only say that heterogeneity is not a problem as long as g(0)=1 and you are only interested in abundance for the entire sampled region. The concept of pooling robustness in distance sampling concerned heterogeneity and estimating overall abundance (Buckland et al. 2001).  However, if heterogeneity exists in detection probability and it is associated with some subset of interest for abundance estimation (e.g., variation in detection due to habitat type) then incorporation of covariates should be considered or bias will be introduced as shown in Rexstad et al. (2023). 
+
+If g(0)<1 and g(0) is estimated from dual observers or other mark-recapture type method then heterogeneity must also be considered. A lack of understanding about the impact of heterogeneity led many authors  to assume independence for all x (Manly et al. 1996, Alpizar-Jara and Pollock 1996, and Chen 2000) which led to substantial negative bias, until Laake(1999) illustrated that independence was only required for x=0. This concept of point independence and the implementation of mark-recapture distance sampling is described fully in Borchers et al (2006), Laake and Borchers (2004) and for point counts in Laake et al. (2011).
+
+
+## Incorporating covariates
+```{r,results='hide'}
+# without covariate
+library(RMark)
+dhet=data.frame(ch=ch_hom,freq=rep(1,length(ch_hom)))
+dp=process.data(dhet,model="Huggins")
+ddl=make.design.data(dp)
+mod_hom=mark(dp,ddl=ddl,model.parameters=list(p=list(formula=~time,share=TRUE)))
+
+
+dhet=data.frame(ch=ch,freq=rep(1,length(ch)),cov=obs_cov)
+dp=process.data(dhet,model="Huggins")
+ddl=make.design.data(dp)
+mod_het=mark(dp,ddl=ddl,model.parameters=list(p=list(formula=~time,share=TRUE)))
+mod_cov=mark(dp,ddl=ddl,model.parameters=list(p=list(formula=~time+cov,share=TRUE)))
+```
+The modelling approach suggested by Huggins (1989,1991) is implemented in the MARK software (White and Burnham 1999) and here we use the RMark interface (Laake 2013) to MARK in the R software (R Core Team 2022). We will not show the code here for fitting the models via RMark because it is provided in the online appendix with the code used to simulate the data, perform statistical tests and fit models for the turkey example described below. We fitted a model using RMark/MARK with separate observer probabilities for both the homogeneity and the heterogeneity simulated data and as we expected, the results matched those we computed manually above (Homogeneity: ```r signif(mod_hom$results$derived[[1]]$estimate,5)``` (SE = ```r signif(mod_hom$results$derived[[1]]$se,3)```) and Heterogeneity: ```r signif(mod_het$results$derived[[1]]$estimate,5)``` (SE = ```r signif(mod_het$results$derived[[1]]$se,3)```). 
+
+
+If you can observe and measure the covariates that introduce heterogeneity in capture/detection probabilities then it is possible to remove the bias from the heterogeneity by including the covariate(s) into the probability model.  This was the reasoning behind the work of Huggins et al.(1989,1991) for capture-recapture and for the sightability model approach to aerial surveys (Steinhorst and Samuel 1989). To demonstrate how covariates can be used to remove heterogeneity, we also fitted a model using the observed covariate values used to generate the heterogeneity in the simulated data. The resulting estimate (```r signif(mod_cov$results$derived[[1]]$estimate,5)``` , SE = ```r signif(mod_cov$results$derived[[1]]$se,3)```) was closer to the true value and the 95% confidence interval (```r signif(mod_cov$results$derived[[1]]$lcl,5)``` , ```r signif(mod_cov$results$derived[[1]]$ucl,5)``` included the true value of 1000. Increased uncertainty (wider confidence intervals) is the price for including the covariate. The model without the covariate was much more precise but it was precisely wrong!
+
+Even after incorporating covariates, residual (unmodelled) heterogeneity is likely to remain because we cannot identify nor model all conditions that create heterogeneity (Borchers et al 2006, Hennig et al 2022). Thus, it is important to consider ways to remove the residual heterogeneity.  For mark-recapture distance sampling that was accomplished by assuming point independence (and possibly limiting independence (Buckland et al. ) in some cases. However, for most mark-recapture surveys for abundance estimation other approaches are needed. The most obvious approach is to incorporate a known number of marked animals in the population (Griffin et al. , Hennig et al. 2022).
+
+
+# Incorporating known marked animals
+```{r,results='hide'}
+
+
+prob_table=cbind(c("Marked Animals","001","011","101","111"," ","Unmarked Animals","010","100","110"),
+c("","$(1-p_1)(1-p_2)p_3$" ,"$(1-p_1)p_2p_3$",  "$p_1(1-c_2)p_3$", "$p_1c_2p_3$" ," ","","$(1-p_1)p_2(1-p_3)$","$p_1(1-c_2)(1-p_3)$","$p_1c_2(1-p_3)$"))
+
+
+df=data.frame(ch=ch_marked,marked=marked)
+last_time=nchar(df$ch)[1]
+dp=process.data(df,model="Huggins",groups="marked")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="marked"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="unmarked"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="marked"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="unmarked"]=0
+ddl
+mod=mark(dp,ddl,model.parameters=list(p=list(formula=~time+c,share=TRUE)))
+mod$results$derived
+
+p1.est=get.real(mod,"p",se=TRUE)[1,]
+p2.est=get.real(mod,"p",se=TRUE)[2,]
+c.est=get.real(mod,"c",se=TRUE)[1,]
+
+```
+
+With a sample of animals with some type of location device (GPS, satellite) that can be located during a survey, you can assess the number of marked animals that were never captured.  In our double observer survey example, that would be equivalent to having $x_{00}$ information for the sample of animals which provides the ability to model dependence induced from heterogeneity. Without $x_{00}$ you must assume independence. Wild burro aerial surveys with GPS marked animals in Hennig et al. 2022 and estimating double tag loss with a sample of permanent marks in Laake et al (2014) are both examples of this approach. 
+
+For abundance estimation with the Huggins model, the $x_{00}$ information is incorporated by expanding the capture history with an added occasion at the end which has the value 1 for the sample of marked animals and the value 0 for any unmarked animals. Thus for marked animals, the possible capture histories are 001,011,101,111 and for unmarked animals are 010,100,110. The heterogeneity is incorporated by having a recapture probability ($c$) for the second "observer" that is different than the initial capture probability. It is truly that simple and our notation is simpler because we have added the occasion at the end whereas Hennig et al (2022) added it to the beginning. 
+
+For the final (third) occasion, the capture probability ($p_3$) is fixed to 1 for marked animals and 0 for unmarked animals, so it is never estimated and never enters the likelihood. The final occasion value simply allows the inclusion of a "00" capture history for marked animals which would not be possible otherwise. 
+
+Table x2 provides the probability structure for a two-sample Huggins model in MARK formulation using occasion (time) subscripts which also represent observers for a double observer survey. Note that $p_2$ is the conditional probability that an animal was detected on the second occasion given that it was missed on the first occasion ($p_{2|0}$). It is fundamentally different than $p_1$ which is the unconditional probability of detection on the first occasion. Likewise, $c_2$ is the conditional probability that an animal was detected on the second occasion given that it was seen on the first occasion ($p_{2|1}$). The manner in which this structure is implemented in RMark for the Huggins model in MARK is described in the online electronic appendix.
+
+
+Table x2. Probabilities for each capture history of marked and unmarked animals with a two-sample(double observer) structure and an additional third dummy occasion to incorporate known marked animals. 
+```{r}
+pander(prob_table)
+```
+
+
+As an example, we randomly selected and "marked' 50 animals of the 1000 in the heterogeneity simulation example above. We fitted the model using the structure in Table x and got estimates of $\hat{p}_1$=```r signif(p1.est$estimate,4)``` (SE=```r signif(p1.est$se,4)```), $\hat{p}_2$=```r signif(p2.est$estimate,4)``` (SE=```r signif(p2.est$se,4)```), and $\hat{c}_2$=```r signif(c.est$estimate,4)``` (SE=```r signif(c.est$se,4)```) which are fairly close to the known values in Table x1. The estimate of abundance was $\hat{N}$= ```r signif(sum(mod$results$derived[[1]]$estimate),3)``` (SE=```r signif(mod$results$derived[[1]]$se[1],3)```).
+
+```{r,results='hide'}
+
+df=data.frame(ch=ch_marked25,marked=marked25)
+last_time=nchar(df$ch)[1]
+dp=process.data(df,model="Huggins",groups="marked")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="marked"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="unmarked"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="marked"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="unmarked"]=0
+ddl
+mod=mark(dp,ddl,model.parameters=list(p=list(formula=~time+c,share=TRUE)))
+
+
+p1.est=get.real(mod,"p",se=TRUE)[1,]
+p2.est=get.real(mod,"p",se=TRUE)[2,]
+c.est=get.real(mod,"c",se=TRUE)[1,]
+
+```
+
+The precision and ability to account for the heterogeneity will in part depend on the sample size of marked animals. To demonstrate this we randomly selected and "marked' only 25 animals of the 1000 in the heterogeneity simulation example. We fitted the same model structure and got estimates of $\hat{p}_1$=```r signif(p1.est$estimate,4)``` (SE=```r signif(p1.est$se,4)```), $\\hat{p}_2$=```r signif(p2.est$estimate,4)``` (SE=```r signif(p2.est$se,4)```), and $\hat{c}_2$=```r signif(c.est$estimate,4)``` (SE=```r signif(c.est$se,4)```). The estimate of abundance was $\hat{N}$= ```r signif(sum(mod$results$derived[[1]]$estimate),3)``` (SE=```r signif(mod$results$derived[[1]]$se[1],3)```). As expected the standard error for some of the parameters and abundance increased. 
+
+## Turkey camera trap survey example
+
+
+```{r,nomarks,results='hide'}
+# turkey=import.chdata("turkey.txt")
+# turkey$ch2=as.character(turkey$ch2)
+# turkey$ch3=as.character(turkey$ch3)
+# df=turkey
+# last_time=nchar(df$ch)[1]
+# df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+# 
+# dp=process.data(df,model="Huggins")
+# ddl=make.design.data(dp)
+# fit_models=function()
+# {
+#   p.0=list(formula=~1,share=TRUE)
+#   p.1=list(formula=~time,share=TRUE)
+#   p.2=list(formula=~time:c,share=TRUE)
+#   cml=create.model.list("Huggins")
+#   results=mark.wrapper(cml,data=dp,ddl=ddl)
+#   return(results)
+# }
+# results=fit_models()
+# results
+# 
+# df=turkey
+# df$ch=df$ch2
+# last_time=nchar(df$ch)[1]
+# df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+# 
+# dp=process.data(df,model="Huggins")
+# ddl=make.design.data(dp)
+# fit_models=function()
+# {
+#   p.0=list(formula=~1,share=TRUE)
+#   p.1=list(formula=~time,share=TRUE)
+#   p.2=list(formula=~time:c,share=TRUE)
+#   cml=create.model.list("Huggins")
+#   results=mark.wrapper(cml,data=dp,ddl=ddl)
+#   return(results)
+# }
+# results=fit_models()
+# results
+# 
+# 
+# df=turkey
+# df$ch=df$ch3
+# last_time=nchar(df$ch)[1]
+# df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+# 
+# dp=process.data(df,model="Huggins")
+# ddl=make.design.data(dp)
+# fit_models=function()
+# {
+#   p.0=list(formula=~1,share=TRUE)
+#   p.1=list(formula=~time,share=TRUE)
+#   p.2=list(formula=~time:c,share=TRUE)
+#   cml=create.model.list("Huggins")
+#   results=mark.wrapper(cml,data=dp,ddl=ddl)
+#   return(results)
+# }
+# results=fit_models()
+# results
+
+```
+
+
+```{r,marks,results='hide'}
+# read in data
+turkey=import.chdata("turkey.txt")
+turkey$ch2=as.character(turkey$ch2)
+turkey$ch3=as.character(turkey$ch3)
+
+# use 3 capture occasions - 10 days each
+df=turkey
+df$ch[df$type=="unknown"]=paste(df$ch[df$type=="unknown"],"0",sep="")
+df$ch[df$type=="known"]=paste(df$ch[df$type=="known"],"1",sep="")
+last_time=nchar(df$ch)[1]
+df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+
+dp=process.data(df,model="Huggins",groups="type")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="known"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="unknown"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="known"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="unknown"]=0
+
+fit_models=function()
+{
+  p.0=list(formula=~1,share=TRUE)
+  p.1=list(formula=~time,share=TRUE)
+  p.2=list(formula=~time+c,share=TRUE)
+  p.3=list(formula=~time+c:time,share=TRUE)
+  p.4=list(formula=~time+type,share=TRUE)
+  p.5=list(formula=~time*type,share=TRUE)
+
+  cml=create.model.list("Huggins")
+  results=mark.wrapper(cml,data=dp,ddl=ddl)
+  return(results)
+}
+results3=fit_models()
+
+
+# use 5 capture occasions - 6 days each
+df=turkey
+df$ch=df$ch2
+df$ch[df$type=="unknown"]=paste(df$ch[df$type=="unknown"],"0",sep="")
+df$ch[df$type=="known"]=paste(df$ch[df$type=="known"],"1",sep="")
+last_time=nchar(df$ch)[1]
+df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+
+dp=process.data(df,model="Huggins",groups="type")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="known"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="unknown"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="known"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="unknown"]=0
+
+fit_models=function()
+{
+  p.0=list(formula=~1,share=TRUE)
+  p.1=list(formula=~time,share=TRUE)
+  p.2=list(formula=~time+c,share=TRUE)
+  p.3=list(formula=~time+c:time,share=TRUE)
+  p.4=list(formula=~time+type,share=TRUE)
+  p.5=list(formula=~time*type,share=TRUE)
+  cml=create.model.list("Huggins")
+  results=mark.wrapper(cml,data=dp,ddl=ddl)
+  return(results)
+}
+results5=fit_models()
+
+
+# 10 capture occasions - 3 days each
+df=turkey
+df$ch=df$ch3
+df$ch[df$type=="unknown"]=paste(df$ch[df$type=="unknown"],"0",sep="")
+df$ch[df$type=="known"]=paste(df$ch[df$type=="known"],"1",sep="")
+last_time=nchar(df$ch)[1]
+df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+
+dp=process.data(df,model="Huggins",groups="type")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="known"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="unknown"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="known"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="unknown"]=0
+
+fit_models=function()
+{
+  p.0=list(formula=~1,share=TRUE)
+  p.1=list(formula=~time,share=TRUE)
+  p.2=list(formula=~time+c,share=TRUE)
+  p.3=list(formula=~time+c:time,share=TRUE)
+  p.4=list(formula=~time+type,share=TRUE)
+  p.5=list(formula=~time*type,share=TRUE)
+  cml=create.model.list("Huggins")
+  results=mark.wrapper(cml,data=dp,ddl=ddl)
+  return(results)
+}
+results10=fit_models()
+results10
+
+
+# HugFullHet
+# turkey=import.chdata("turkey.txt")
+# turkey$ch2=as.character(turkey$ch2)
+# turkey$ch3=as.character(turkey$ch3)
+# df=turkey
+# df$ch[df$type=="unknown"]=paste(df$ch[df$type=="unknown"],"0",sep="")
+# df$ch[df$type=="known"]=paste(df$ch[df$type=="known"],"1",sep="")
+# 
+# last_time=nchar(df$ch)[1]
+# df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+# names(df)[4]="marked"
+# 
+# dp=process.data(df,model="HugFullHet",groups="type",mixtures=2)
+# ddl=make.design.data(dp)
+# ddl$p$fix=NA
+# ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="known"]=1
+# ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="unknown"]=0
+# ddl$p$fix[ddl$p$time%in%1:3&ddl$p$mixture==1]=0
+# ddl$c$fix=NA
+# ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="known"]=1
+# ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="unknown"]=0
+# ddl$c$fix[ddl$c$time%in%1:3&ddl$c$mixture==1]=0
+# fit_models=function()
+# {
+#   p.0=list(formula=~1,share=TRUE)
+#   p.1=list(formula=~time,share=TRUE)
+#   cml=create.model.list("HugFullHet")
+#   results=mark.wrapper(cml,data=dp,ddl=ddl)
+#   return(results)
+# }
+# results=fit_models()
+
+compute_Nhat=function(mod,nocc)
+{
+  # get real estimates of p_time 
+  real_list=get.real(mod,"p",vcv=TRUE)
+  p_est=real_list$estimates$estimate[1:nocc]
+  vcv=real_list$vcv[1:nocc,1:nocc]
+  pdot=1-prod(1-p_est)
+  deriv=1-p_est
+  vc_pdot=t(deriv)%*%vcv%*%deriv
+  Mt1=colSums(mod$data$freq)[2]
+  known=colSums(mod$data$freq)[1]
+  Nhat=Mt1/pdot
+  deriv=matrix(-Mt1/pdot^2,nrow=1)
+  se_Nhat=sqrt(Mt1*((1-pdot)/pdot^2)+deriv%*%vc_pdot%*%t(deriv))
+  Nhat=Nhat-Mt1
+  cv_Nhat=se_Nhat/Nhat
+  C=exp(1.96*sqrt(log(1+cv_Nhat^2)))
+  Nhat_lcl=Nhat/C+Mt1+known
+  Nhat_ucl=Nhat*C+Mt1+known
+  Nhat=Nhat+Mt1+known
+  return(list(Nhat=Nhat,se=se_Nhat,Nhat_lcl=Nhat_lcl,Nhat_ucl=Nhat_ucl))
+}
+
+Nhat=NULL
+LCL=NULL
+UCL=NULL
+for(i in 1:6)
+{
+  if(i %in%1:4)
+  {
+      Nhat=c(Nhat,sum(results3[[i]]$results$derived[[1]]$estimate))
+      LCL=c(LCL,sum(results3[[i]]$results$derived[[1]]$lcl))  
+      UCL=c(UCL,sum(results3[[i]]$results$derived[[1]]$ucl))  
+  } else
+  {
+    Nlist=compute_Nhat(results3[[i]],3)
+    Nhat=c(Nhat,Nlist$Nhat)
+    LCL=c(LCL,Nlist$Nhat_lcl) 
+    UCL=c(UCL,Nlist$Nhat_ucl)
+  }
+}
+do_ma=function(results,nocc)
+{
+  estimate=matrix(0,nrow=nrow(results$model.table),ncol=2,byrow=TRUE)
+  vcv=list()
+  for(i in 1:nrow(results$model.table))
+  {
+     model_num=as.numeric(row.names(results$model.table)[i])
+     if(model_num<=4)
+     {
+      estimate[i,]=results[[model_num]]$results$derived[[1]]$estimate
+      vcv[[i]]=results[[as.numeric(row.names(results$model.table)[i])]]$results$derived.vcv[[1]]
+     }else
+     {
+       Nlist=compute_Nhat(results[[model_num]],nocc)
+       vcvn=matrix(0,nrow=2,ncol=2)
+       vcvn[2,2]=Nlist$se^2
+       known=colSums(results[[model_num]]$data$freq)[1]
+       estimate[i,]=c(known,Nlist$Nhat-known)
+       vcv[[i]]=vcvn
+      }
+  }
+  weight=results$model.table$weight
+  
+  return(model.average(x=list(estimate=estimate,weight=weight,vcv=vcv)))
+}
+Nmat=matrix(0,nrow=3,ncol=5)
+observed=nrow(df)
+Nhat3=do_ma(results3,3)
+est=sum(Nhat3$estimate)-observed
+se=sum(Nhat3$se)
+cv=se/est
+C=exp(1.96*sqrt(log(1+cv^2)))
+Nmat[1,]=c(3,observed+est,se,observed+est/C,observed+est*C)
+Nhat5=do_ma(results5,5)
+est=sum(Nhat5$estimate)-observed
+se=sum(Nhat5$se)
+cv=se/est
+C=exp(1.96*sqrt(log(1+cv^2)))
+Nmat[2,]=c(5,observed+est,se,observed+est/C,observed+est*C)
+Nhat10=do_ma(results10,10)
+est=sum(Nhat10$estimate)-observed
+se=sum(Nhat10$se)
+cv=se/est
+C=exp(1.96*sqrt(log(1+cv^2)))
+Nmat[3,]=c(10,observed+est,se,observed+est/C,observed+est*C)
+colnames(Nmat)=c("# of occasions", "$\\hat{N}$","Std. Error", "95% LCL", "95% UCL")
+
+```
+
+Buckley et al. (in press) reported on a camera trapping experiment for 80 turkeys with unique tags released into a wildlife management area that didn't contain any other turkeys. Twenty-six of the turkeys had a working GPS unit or VHF tag that enabled the turkeys to be located during the 30 day capture period.  The capture period was broken down into three 10 day periods, five 6 day periods and ten 3 day periods to construct capture histories for mark-recapture abundance estimates with various estimators including Huggins (1989,1991). We used the same data to demonstrate that inclusion of the 26 known (GPS/VHF) turkeys into the estimation can remove heterogeneity and provide an estimate that has lower precision but is much closer to the true population size.
+
+Table xxx demonstrates the importance of the known individuals in reducing heterogeneity. Only 50% of the known animals were detected and this information is included in the estimation with the 000 observations. Likewise, 44.4% (24/54) of the unknown turkeys were never detected but we obviously can't include those never seen (000). In the standard capture-recapture analysis in Buckley et al (in press), 50 of the 80 animals were never observed on the camera traps and the excess 000 observations due to heterogeneity could not be accounted correctly and the estimates were all much lower than the 80 turkeys.
+
+Table xxx. Capture histories of known and unknown turkeys for three 10 day occasions from Buckley et al. (in press). Only known turkeys can have a "000" capture history.
+```{r}
+pander(with(turkey[!(turkey$ch=="000" &turkey$type=="unknown"),],table(ch,type)))
+```
+
+We fitted the following 6 models with Huggins (1989,1991): 1) constant capture probability (~1), 2) time dependent capture probability (~time), 3) time dependence for initial capture probability and an additive recapture effect (~time+c), 4) separate time dependence in initial capture probability and recapture probability (~time+c:time) 5) time dependence plus an additive difference for known turkeys as described in Griffin et al. (2013) (~time+type), 6) same as model 5 but with interaction of time and type (~time\*type). We expected models 3 and 4 to be the best models based on the experience of Hennig et al. (2022) and our understanding of heterogeneity we have explained here. For each of the 3,5,10 capture occasion analyses (Tables x1-x3) models 3 and 4 were clearly the best models with ```r signif(sum(100*results3$model.table$weight[1:2]),4)```, ```r signif(sum(100*results5$model.table$weight[1:2]),4)```, and ```r signif(sum(100*results10$model.table$weight[1:2]),4)``` percent of the model weight respectively. 
+
+Table x1. Model selection table from 3 occasions of 10 days each.
+```{r}
+pander(results3$model.table[,3:8])
+```
+
+Table x2. Model selection table from 5 occasions of 6 days each.
+```{r}
+pander(results5$model.table[,3:8])
+```
+
+
+Table x3. Model selection table from 10 occasions of 3 days each.
+```{r}
+pander(results10$model.table[,3:8])
+```
+
+We computed model averaged estimates of abundance, the standard error and 95% log-normal confidence intervals for the 3, 5 and 10 occasion analysis.  For 5 occasions the estimate is lower because of the weight assigned to models 5 and 6 which will tend to underestimate abundance.
+
+Table. Model averaged abundance estimates for 3,5,10 occasions.
+```{r}
+pander(Nmat)
+```
+
+```{r}
+plot(1:6,Nhat,ylim=c(40,130),xlab="Model #",ylab="Abundance estimate")
+for(i in 1:6)
+  lines(x=c(i,i),y=c(LCL[i],UCL[i]))
+lines(c(1,6),c(80,80))
+
+```
+
+Discussion
+
+Double observer example - having observers search and detect animals independently without cuing each other does not mean that detections will be statistically independent.
+
+sample size of radio-tagged birds and distribution throughout population
+
+
+
+
+
+
+Literature Cited 
+
+Alpizar-Jara, R. & K.H. Pollock 1996. A combination line transect and capture-recapture sampling model for multiple observers in aerial surveys. Env. Ecol. Stat. 3:311-327.
+
+Ashbridge, J. and  I. B. J.Goudie. 2008. Conditionally Unbiased Estimation of Population Size Under Plant-Capture, Communications in Statistics - Theory and Methods, 38:1, 1-12.
+
+Borchers, D. L., J. L. Laake, C. Southwell, and C. G. M. Paxton. 2006. Accommodating unmodeled heterogeneity in double‐observer distance sampling surveys. Biometrics 62:372–378.
+
+Buckland, S. T., Anderson, D. R., Burnham, K. P., Laake, J. L., Borchers, D. L., and Thomas, L. 2001. Introduction to Distance Sampling: Estimating Abundance of Biological Populations, Oxford: Oxford University Press.
+
+Buckland, S. T., J. L. Laake, and D. L. Borchers. 2010. Double‐observer line transect methods: levels of independence. Biometrics 66:169–177.
+
+Burnham KP, and W.S. Overton. 1978. Estimation of the size of a closed population when capture probabilities vary among animals. Biometrika 65:625–633.
+
+Burnham KP, and W.S. Overton. 1979. Robust estimation of population size when capture probabilities vary among animals. Biometrika 65:625–633  
+
+Chen, S.X. 2000. Animal abundance estimation in independent observer line transect surveys. Envir. Ecol. Stat. 7:285-299 
+
+Cormack, R.M. 1966. A Test for Equal Catchability. Biometrics 22(2):330-342.
+ 
+Dorazio, R. M., and J. A. Royle. 2003. Mixture models for estimating the size of a closed population when capture rates vary among individuals. Biometrics 59: 351– 364. 
+
+Griffin, P. C., B. C. Lubow, K. J. Jenkins, D. J. Vales, B. J. Moeller, M. Reid, P. J. Happe, S. M. McCorquodale, M. J. Tirhi, J. P. Schaberl, and K. Beirne. 2013. A hybrid double‐observer sightability model for aerial surveys. Journal of Wildlife Management 77:1532–1544.
+
+Goudie, I. 1995. A plant-capture approach for achieving complete coverage of a population. Communications in Statistics - Theory and Methods 24, 1293–1305.
+
+Huggins, R. M. 1989. On the statistical analysis of capture‐recapture experiments. Biometrika 76:133–140.
+
+Huggins, R. M. 1991. Some practical aspects of a conditional likelihood approach to capture experiments. Biometrics 47:
+725–732.
+
+Laake, J. L. 1999. Distance sampling with independent observers: reducing bias from heterogeneity by weakening the conditional independence assumption. In ‘Marine Mammal Survey and Assessment Methods’. (Eds G. Amstrup, S. Garner, J. Laake, B. Manly, L. McDonald and D. Robertson.) pp. 137–148. (Balkema: Rotterdam.)
+
+Laake, J. L. 2013. RMark: an R interface for analysis of capture‐recapture data with MARK. AFSC Processed Rep 2013‐01.Alaska Fisheries Science Center, National Oceanic Atmospheric Administration, National Marine Fisheries Service,Seattle, Washington, USA.
+
+Laake, J. L., M. J. Dawson,  J.and Hone, J. 2008. Visibility bias: mark–recapture, line-transect, or both? Wildlife Research 35, 299–309.
+
+Laake, J. L., and D. L. Borchers. 2004. Methods for incomplete detection at distance zero. Pages 108–189 in S. T. Buckland, D. R. Anderson, K. P. Burnham, J. L. Laake, D. L. Borchers, and L. Thomas, editors. Advanced distance sampling. Oxford University Press, Oxford, United Kingdom.
+
+Laake, J. L., D. S. Johnson, D. R. Diefenbach, and M. A. Ternent. 2014. Hidden Markov model for dependent mark loss and survival estimation. Journal of Agricultural, Biological, and Environmental Statistics 19:522–538.
+
+Laake, J.L.,  B. A. Collier, M. L. Morrison & R. N. Wilkins, 2011. Point-Based Mark-Recapture Distance Sampling. Journal of Agricultural, Biological, and Environmental Statistics.  16(3), 389–408. 
+
+Laska, E. M., Meisner, M. & Siegel, C. (1988), ‘Estimating the size of a population from a single sample’, Biometrics 44, 461–472.
+
+Link, W. A. 2003. Nonidentifiability of Population Size from Capture–Recapture Data with Heterogeneous Detection Probabilities. Biometrics 59: 1123– 30.
+
+Lubow, B. C., and J. I. Ransom. 2007. Aerial population estimates of wild horses (Equus caballus) in the Adobe Town and Salt Wells Creek Herd Management Areas using an integrated simultaneous double count and sightability bias correction technique. U.S. Geological Survey Open-File Report 2007–1274. U.S. Geological Survey, Reston, Virginia, USA.
+
+Manly, B.F.J., L.L. McDonald & G.W. Garner 1996. Maximum likelihood estimation for the double-count method with independent observers. J. Agr. Bio. Env. Stat. 1:170-189.
+
+McClintock, B.T., G.C. White & K.P. Burnham. 2006. A robust design mark-resight abundance estimator allowing heterogeneity in resighting probabilities. JABES 11, 231. https://doi.org/10.1198/108571106X129171
+
+Otis, D. L., K. P. Burnham, G. C. White, and D. R. Anderson. 1978. Statistical inference from capture data on closed animal populations. Wildlife Monographs 62:3–135.
+
+Pledger, S. and M. Efford. 1998. Correction of bias due to heterogeneous capture probability in capture-recapture studies of open populations. Biometrics, pp.888-898. 
+
+Pledger, S. 2000. Unified maximum likelihood estimates for closed capture-recapture models for mixtures. Biometrics 56: 434– 442.
+
+R Core Team 2022. R: A language and environment for statistical computing. R Foundation for
+Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
+
+Steinhorst, R. K., and M. D..Samuel. 1989. Sightability adjustment methods for aerial surveys of wildlife populations. Biometrics 45:415–425
+
+White GC, and E.G. Cooch. 2017. Population abundance estimation with heterogeneous encounter probabilities using numerical integration: individual heterogeneity and abundance estimation. J Wildl Manag 81:322–336
+
+White, G. C., and K. P. Burnham. 1999. Program MARK: survival estimation from populations of marked animals. Bird Study 46:120–138.
+
+
+

@@ -1,0 +1,558 @@
+---
+title: "Online Appendix for Heterogeneity in Wildlife Abundance Estimation"
+author: "Jeff Laake and Bret Collier"
+date: "2023-03-02"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+library(xtable)
+library(pander)
+```
+
+All of the code used to generate results in the paper are provided here including simulation of homogeneous and heterogeneous data and analysis of these data demonstrating bias due to residual heterogeneity and use of covariates and planted animals to remove heterogeneity.  Additionally the code used for analysis of the wild turkey data and the tables and plot can be recreated with the code contained herein. The Rmarkdown document that created this online appendix is also available online with the turkey.txt file that is needed for the example.
+
+## Homogeneous Simulation Example
+The following demonstrates the simulation realization of the homogeneous example and the code to show chi-square contingency test and estimation of the parameters and abundance.
+```{r}
+#simulation with homogeneous detection probabilities
+# set random seed so results are the same as in the paper
+set.seed(9039921)
+# set parameters
+ss=1000
+p1=0.4
+p2=0.6
+# which are seen by first and second observer
+p1=as.numeric(runif(ss)<=p1)
+p2=as.numeric(runif(ss)<=p2)
+# create 2 occasion capture history
+all_ch=paste(p1,p2,sep="")
+#remove those not seen by either observer
+ch_hom=all_ch[all_ch!="00"]
+
+# construct contingency table and show
+x=table(p1,p2)
+x
+# perform chi-square contingency test for independence
+chisq.test(x)
+# show covariance/correlation/correlation test between detections of observers
+cov(p1,p2)
+cor(p1,p2)
+cor.test(p1,p2)
+
+# compute total number observed and detection probabilities from results
+n=(sum(x)-x[1,1])
+p_hat=c(x[2,2]/sum(x[,2]),x[2,2]/sum(x[2,]))
+p_hat
+# compute probability that at least one of the observers detected
+p_either=(1-prod(1-p_hat))
+p_either
+# compute estimate of abundance using n/p_either which is an alternate estimator
+# from Lincoln-Petersen and will produce the same value. THis is a more universal estimation
+# equation that is common to many forms of abundance estimators including distance sampling
+# where the number observed is divided by the sample inclusion probability (overall detection
+# probability)
+Nhat=n/p_either
+Nhat
+est_hom=c(n,p_either,Nhat)
+
+# compute probability that observer 2 detects what observer 1 missed
+p2_0=x[1,2]/sum(x[1,])
+p2_0
+# compute probability that observer 2 detects what observer 1 detected (often called a duplicate)
+p2_1=x[2,2]/sum(x[2,])
+p2_1
+# compute overall detection probability for each observer
+p1=sum(x[2,])/sum(x)
+p1
+p2=sum(x[,2])/sum(x)
+p2
+
+# construct matrix of capture history probabilities
+ctab_hom=matrix(c((1-p1)*(1-p2_0),p1*(1-p2_1),(1-p1)*p2_0,p1*p2_1),nrow=2)
+x/sum(x)
+ctab_hom
+
+# construct matrix of individual probabilities
+x_hom=x
+prob_hom=c(p1,p2,p2_0,p2_1)
+prob_hom
+```
+
+## Heterogeneous Simulation Example
+The following demonstrates the simulation realization of the hoterogeneous example and the code to show chi-square contingency test and estimation of the parameters and abundance.
+```{r}
+#simulation with heterogeneous detection probabilities
+# cov is a normal random variable with mean 0 and standard deviation that
+# functions as the covariate affecting detection probability
+cov=rnorm(ss,0,2)
+
+# set detection probabilities for each of the cov values; cov=0 will give same values
+# used in the homogeneous simulation
+p1=plogis(log(.4/.6)+cov)
+p2=plogis(log(.6/.4)+cov)
+
+# randomly decide which of the ss are detected for each observer
+p1=as.numeric(runif(ss)<=p1)
+p2=as.numeric(runif(ss)<=p2)
+# create 2 occasion capture history
+all_ch=paste(p1,p2,sep="")
+#remove those not seen by either observer
+ch=all_ch[all_ch!="00"]
+# store cov values for those detected to be used in model with covariate values
+obs_cov=cov[p1>0 | p2>0]
+
+# 50 marked animals that are "planted" in the population for later analysis
+# these are the simulated animals that would be known and "tracked" such that we know 
+# which are never seen by either observer
+marked=sample(1:1000,50)
+# add a third dummy occasion which is 1 for the 50 known animals and 0 for all others
+p3=rep(0,1000)
+p3[marked]=1
+# create a three occasion capture history
+ch_marked=paste(p1,p2,p3,sep="")
+# create a factor variable that has value "marked" for the 50 known and "unmarked" 
+# for the observed unknown
+marked=factor(p3[ch_marked!="000"],labels=c("unmarked","marked"))
+# throw away capture histories that are all "000"; note that marked not seen are "001"
+ch_marked=ch_marked[ch_marked!="000"]
+
+# now do the same for 25 marked animals
+marked25=sample(1:1000,25)
+p3=rep(0,1000)
+p3[marked25]=1
+ch_marked25=paste(p1,p2,p3,sep="")
+marked25=factor(p3[ch_marked25!="000"],labels=c("unmarked","marked"))
+ch_marked25=ch_marked25[ch_marked25!="000"]
+
+
+# construct contingency table and show
+x=table(p1,p2)
+x
+# perform chi-square contingency test for independence
+chisq.test(x)
+# show covariance/correlation/correlation test between detections of observers
+cov(p1,p2)
+cor(p1,p2)
+cor.test(p1,p2)
+
+# Compute detection probabilities and abundance estimate as done above
+# assuming independence with the heterogeneous simulation
+n=(sum(x)-x[1,1])
+p_hat=c(x[2,2]/sum(x[,2]),x[2,2]/sum(x[2,]))
+p_hat
+p_either=(1-prod(1-p_hat))
+p_either
+p_neither=prod(1-p_hat)
+p_neither
+
+Nhat=n/p_either
+Nhat
+
+est_het=c(n,p_either,Nhat)
+
+# compute probability that observer 2 detects what observer 1 missed
+p2_0=x[1,2]/sum(x[1,])
+p2_0
+# compute probability that observer 2 detects what observer 1 detected 
+# (often called a duplicate)
+p2_1=x[2,2]/sum(x[2,])
+p2_1
+# compute overall detection probability for each observer
+p1=sum(x[2,])/sum(x)
+p1
+p2=sum(x[,2])/sum(x)
+p2
+
+prob_het=c(p1,p2,p2_0,p2_1)
+prob_het
+
+# construct matrix of capture history probabilities under dependence model
+ctab_het=matrix(c((1-p1)*(1-p2_0),p1*(1-p2_1),(1-p1)*p2_0,p1*p2_1),nrow=2)
+x/sum(x)
+ctab_het
+
+x_het=x
+```
+
+
+## Simulation Realization for Homogeneous and Heterogeneous Simulations
+
+The following table shows a single realization of the simulation for both the homogeneity and heterogeneity side-by-side.
+
+```{r,echo=FALSE}
+pander(cbind(x_hom,x_het))
+```
+
+
+```{r,echo=FALSE}
+prob_table=cbind(prob_hom,prob_het)
+rownames(prob_table)=c("$p_1$","$p_2$","$p_{2|0}$","$p_{2|1}$")
+colnames(prob_table)=c("Homogeneity","Heterogeneity")
+pander(prob_table)
+```
+
+## Estimation with Huggins model via MARK/RMark
+Here will compute the estimates from above with Huggins model in MARK using the RMark interface for the homogeneous and heterogeneous simulation examples.
+```{r}
+
+library(RMark)
+# create data frame using the capture history from the homogeneous simulation realization
+dhet=data.frame(ch=ch_hom,freq=rep(1,length(ch_hom)))
+# process data with Huggins model
+dp=process.data(dhet,model="Huggins")
+# compute default design data
+ddl=make.design.data(dp)
+# run model with time variation in detection probability; the share=TRUE means 
+# recapture probability (p_2|1) is the same as initial capture probability
+mod_hom=mark(dp,ddl=ddl,model.parameters=list(p=list(formula=~time,share=TRUE)))
+
+
+# create data frame using the capture history from the homogeneous simulation realization
+dhet=data.frame(ch=ch,freq=rep(1,length(ch)),cov=obs_cov)
+# process data with Huggins model
+dp=process.data(dhet,model="Huggins")
+# compute default design data
+ddl=make.design.data(dp)
+# run model with time variation in detection probability; the share=TRUE means 
+# recapture probability (p_2|1) is the same as initial capture probability
+mod_het=mark(dp,ddl=ddl,model.parameters=list(p=list(formula=~time,share=TRUE)))
+# run model with time and covariate variation in detection probability; the share=TRUE 
+# means recapture probability p_(2|1) is the same as initial capture probability
+mod_cov=mark(dp,ddl=ddl,model.parameters=list(p=list(formula=~time+cov,share=TRUE)))
+```
+
+## Estimation with "planted" individuals for heterogeneous simulation data
+```{r}
+
+# construct probability table for marked (known) and unmarked(unknown) animals
+prob_table=cbind(c("Marked Animals","001","011","101","111"," ",
+"Unmarked Animals","010","100","110"),c("","$(1-p_1)(1-p_2)p_3$" ,"$(1-p_1)p_2p_3$",
+"$p_1(1-c_2)p_3$", "$p_1c_2p_3$" ,"","","$(1-p_1)p_2(1-p_3)$",
+"$p_1(1-c_2)(1-p_3)$","$p_1c_2(1-p_3)$"))
+
+# construct dataframe with capture history(ch) and factor variable marked which 
+# is used to create groups in the data for abundance estimation
+df=data.frame(ch=ch_marked,marked=marked)
+# get the length of the capture history which is 3 in this case. This is used to fix 
+# p for last occasion
+last_time=nchar(df$ch)[1]
+# process data with Huggins model and groups defined by marked factor variable
+dp=process.data(df,model="Huggins",groups="marked")
+# create default design data
+ddl=make.design.data(dp)
+# add a field "fix" to the design data for parameter p (capture) and c(recapture) 
+# a value of NA means that parameter will be estimated
+ddl$p$fix=NA
+ddl$c$fix=NA
+# for the last occasion (time) fix p and c to be 1 for known animals and 0 for
+# unknown animals
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="marked"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="unmarked"]=0
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="marked"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="unmarked"]=0
+# show the design data
+ddl
+# fit a model with time variation and a time constant difference for 
+# recapture probability (+c)
+mod=mark(dp,ddl,model.parameters=list(p=list(formula=~time+c,share=TRUE)))
+# show the derived abundance estimates for each group. known animals will be the number 
+# marked because p for last occasion is 1 (all are "detected")
+mod$results$derived
+
+# show the estimates for p1,p2 and recapture probability
+p1.est=get.real(mod,"p",se=TRUE)[1,]
+p1.est
+p2.est=get.real(mod,"p",se=TRUE)[2,]
+p2.est
+c.est=get.real(mod,"c",se=TRUE)[1,]
+c.est
+
+```
+
+
+Table. Probabilities for each capture history of marked and unmarked animals with a two-sample(double observer) structure and an additional third dummy occasion to incorporate known marked animals. 
+```{r,echo=FALSE}
+pander(prob_table)
+```
+
+
+```{r}
+#Now do the same as above but with a sample of 25 known animals
+df=data.frame(ch=ch_marked25,marked=marked25)
+last_time=nchar(df$ch)[1]
+dp=process.data(df,model="Huggins",groups="marked")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="marked"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$marked=="unmarked"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="marked"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$marked=="unmarked"]=0
+mod=mark(dp,ddl,model.parameters=list(p=list(formula=~time+c,share=TRUE)))
+
+p1.est=get.real(mod,"p",se=TRUE)[1,]
+p1.est
+p2.est=get.real(mod,"p",se=TRUE)[2,]
+p2.est
+c.est=get.real(mod,"c",se=TRUE)[1,]
+c.est
+
+```
+
+## Wild turkey example using "planted" individuals
+
+```{r,turkey}
+# read in data from wild turkey example
+turkey=import.chdata("turkey.txt")
+# turkey$ch is capture history for 3 occasions with each "occasion" 
+# being 10 consecutive days
+# turkey$ch2 is capture history for 5 occasions with each "occasion" being 
+# 6 consecutive days
+# turkey$ch3 is capture history for 10 occasions with each "occasion" being 
+# 3 consecutive days
+turkey$ch2=as.character(turkey$ch2)
+turkey$ch3=as.character(turkey$ch3)
+
+# use 3 capture occasions - 10 days each
+df=turkey
+# define factor variable type (same as marked above) with values known (gps/vhf turkeys)
+# and unknown
+df$ch[df$type=="unknown"]=paste(df$ch[df$type=="unknown"],"0",sep="")
+df$ch[df$type=="known"]=paste(df$ch[df$type=="known"],"1",sep="")
+# get the length of the capture history which is 3 in this case. This is used to 
+# fix p for last occasion
+last_time=nchar(df$ch)[1]
+# remove all capture histories with all 0s
+df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+
+# process data with Huggins model and type used to create groups
+dp=process.data(df,model="Huggins",groups="type")
+# create default design data
+ddl=make.design.data(dp)
+# fix p an dc for last occasion based on value of type as done with simulation example
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="known"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="unknown"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="known"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="unknown"]=0
+
+# create a function to fit 6 different possible models
+fit_models=function()
+{
+  # constant detection probability
+  p.0=list(formula=~1,share=TRUE)    
+  # time variation in detection probability
+  p.1=list(formula=~time,share=TRUE)  
+  # as p.1 with additive difference for recapture probability
+  p.2=list(formula=~time+c,share=TRUE)  
+  # time variation in capture and recapture probability (interaction)
+  p.3=list(formula=~time+c:time,share=TRUE)
+  # model in Griffin et al with(2013) additive type difference
+  p.4=list(formula=~time+type,share=TRUE)  
+  # same a p.4 but time variation differing between types
+  p.5=list(formula=~time*type,share=TRUE)      
+  # create model list
+  cml=create.model.list("Huggins")  
+  # fit each model and construct a model results table
+  results=mark.wrapper(cml,data=dp,ddl=ddl)    
+  return(results)
+}
+# fit models and store in results3
+results3=fit_models()
+results3
+
+
+# same as above with 5 capture occasions of 6 days each
+df=turkey
+df$ch=df$ch2
+df$ch[df$type=="unknown"]=paste(df$ch[df$type=="unknown"],"0",sep="")
+df$ch[df$type=="known"]=paste(df$ch[df$type=="known"],"1",sep="")
+last_time=nchar(df$ch)[1]
+df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+
+dp=process.data(df,model="Huggins",groups="type")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="known"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="unknown"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="known"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="unknown"]=0
+
+results5=fit_models()
+results5
+
+# same as above with 10 capture occasions - 3 days each
+df=turkey
+df$ch=df$ch3
+df$ch[df$type=="unknown"]=paste(df$ch[df$type=="unknown"],"0",sep="")
+df$ch[df$type=="known"]=paste(df$ch[df$type=="known"],"1",sep="")
+last_time=nchar(df$ch)[1]
+df=df[df$ch!=paste(rep("0",last_time),collapse=""),]
+
+dp=process.data(df,model="Huggins",groups="type")
+ddl=make.design.data(dp)
+ddl$p$fix=NA
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="known"]=1
+ddl$p$fix[ddl$p$time==last_time&ddl$p$type=="unknown"]=0
+ddl$c$fix=NA
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="known"]=1
+ddl$c$fix[ddl$c$time==last_time&ddl$c$type=="unknown"]=0
+
+results10=fit_models()
+results10
+
+
+# Models in p.4 and p.5 that use an type difference as in Griffin et al. (2013)
+# They proposed fitting this model whee known animals would have an expected lower 
+# detection probability and then using that detection probability estimate for the
+# unknown animals.  MARK does not operate that way with groups. It uses the estimated 
+# probabilities for each group with the numbers observed for that group to derive the
+# group abundance estimates.  Thus to estimate abundance for models based on p.4 and p.5
+# we had to create code to compute the abundance estimates. That code is in the
+# function compute_Nhat. It computes the estimate, its std error, and 
+# 95% log-normal confidence 
+# interval as done in MARK. The arguments for the function are a particular model (mod) and
+# the number of occasions (nocc) which determines the number of time specific probabilities.
+compute_Nhat=function(mod,nocc)
+{
+  # get real estimates of p_time 
+  real_list=get.real(mod,"p",vcv=TRUE)
+  p_est=real_list$estimates$estimate[1:nocc]
+  vcv=real_list$vcv[1:nocc,1:nocc]
+  pdot=1-prod(1-p_est)
+  deriv=1-p_est
+  vc_pdot=t(deriv)%*%vcv%*%deriv
+  Mt1=colSums(mod$data$freq)[2]
+  known=colSums(mod$data$freq)[1]
+  Nhat=Mt1/pdot
+  deriv=matrix(-Mt1/pdot^2,nrow=1)
+  se_Nhat=sqrt(Mt1*((1-pdot)/pdot^2)+deriv%*%vc_pdot%*%t(deriv))
+  Nhat=Nhat-Mt1
+  cv_Nhat=se_Nhat/Nhat
+  C=exp(1.96*sqrt(log(1+cv_Nhat^2)))
+  Nhat_lcl=Nhat/C+Mt1+known
+  Nhat_ucl=Nhat*C+Mt1+known
+  Nhat=Nhat+Mt1+known
+  return(list(Nhat=Nhat,se=se_Nhat,Nhat_lcl=Nhat_lcl,Nhat_ucl=Nhat_ucl))
+}
+
+# This function uses compute_Nhat above for models p.4 and p.5(5th and 6th models)
+# and the derived abundance estimates from MARK output for first 4 models and then 
+# computes a model average estimate across the 6 models
+do_ma=function(results,nocc)
+{
+  estimate=matrix(0,nrow=nrow(results$model.table),ncol=2,byrow=TRUE)
+  vcv=list()
+  for(i in 1:nrow(results$model.table))
+  {
+     model_num=as.numeric(row.names(results$model.table)[i])
+     if(model_num<=4)
+     {
+      estimate[i,]=results[[model_num]]$results$derived[[1]]$estimate
+      vcv[[i]]=
+        results[[as.numeric(row.names(results$model.table)[i])]]$results$derived.vcv[[1]]
+     }else
+     {
+       Nlist=compute_Nhat(results[[model_num]],nocc)
+       vcvn=matrix(0,nrow=2,ncol=2)
+       vcvn[2,2]=Nlist$se^2
+       known=colSums(results[[model_num]]$data$freq)[1]
+       estimate[i,]=c(known,Nlist$Nhat-known)
+       vcv[[i]]=vcvn
+      }
+  }
+  weight=results$model.table$weight
+  
+  return(model.average(x=list(estimate=estimate,weight=weight,vcv=vcv)))
+}
+
+# create a matrix of estimates, std errors and confidence intervals of model
+# averaged estimates for 3,5 and 10 occasions
+Nmat=matrix(0,nrow=3,ncol=5)
+observed=nrow(df)
+Nhat3=do_ma(results3,3)
+est=sum(Nhat3$estimate)-observed
+se=sum(Nhat3$se)
+cv=se/est
+C=exp(1.96*sqrt(log(1+cv^2)))
+Nmat[1,]=c(3,observed+est,se,observed+est/C,observed+est*C)
+Nhat5=do_ma(results5,5)
+est=sum(Nhat5$estimate)-observed
+se=sum(Nhat5$se)
+cv=se/est
+C=exp(1.96*sqrt(log(1+cv^2)))
+Nmat[2,]=c(5,observed+est,se,observed+est/C,observed+est*C)
+Nhat10=do_ma(results10,10)
+est=sum(Nhat10$estimate)-observed
+se=sum(Nhat10$se)
+cv=se/est
+C=exp(1.96*sqrt(log(1+cv^2)))
+Nmat[3,]=c(10,observed+est,se,observed+est/C,observed+est*C)
+colnames(Nmat)=c("# of occasions", "$\\hat{N}$","Std. Error", "95% LCL", "95% UCL")
+```
+
+
+Table. Capture histories of known and unknown turkeys for three 10 day occasions from Buckley et al. (in press). Only known turkeys can have a "000" capture history.
+```{r,echo=FALSE}
+pander(with(turkey[!(turkey$ch=="000" &turkey$type=="unknown"),],table(ch,type)))
+```
+
+
+Table. Model selection table from 3 occasions of 10 days each.
+```{r,echo=FALSE}
+pander(results3$model.table[,3:8])
+```
+
+Table. Model selection table from 5 occasions of 6 days each.
+```{r,echo=FALSE}
+pander(results5$model.table[,3:8])
+```
+
+
+Table. Model selection table from 10 occasions of 3 days each.
+```{r,echo=FALSE}
+pander(results10$model.table[,3:8])
+```
+
+Table. Model averaged abundance estimates for 3,5,10 occasions.
+```{r,echo=FALSE}
+pander(Nmat)
+```
+
+
+```{r}
+# compute abundance and plot estimates and 95% confidence intervals for each of the 6 models
+# for 3 occasion turkey data example
+png("Figure1.png")
+Nhat=NULL
+LCL=NULL
+UCL=NULL
+for(i in 1:6)
+{
+  if(i %in%1:4)
+  {
+      Nhat=c(Nhat,sum(results3[[i]]$results$derived[[1]]$estimate))
+      LCL=c(LCL,sum(results3[[i]]$results$derived[[1]]$lcl))  
+      UCL=c(UCL,sum(results3[[i]]$results$derived[[1]]$ucl))  
+  } else
+  {
+    Nlist=compute_Nhat(results3[[i]],3)
+    Nhat=c(Nhat,Nlist$Nhat)
+    LCL=c(LCL,Nlist$Nhat_lcl) 
+    UCL=c(UCL,Nlist$Nhat_ucl)
+  }
+}
+plot(1:6,Nhat,ylim=c(40,130),xlab="Model No.",ylab="Abundance estimate",las=1)
+for(i in 1:6)
+  lines(x=c(i,i),y=c(LCL[i],UCL[i]))
+lines(c(1,6),c(80,80))
+dev.off()
+```
+
